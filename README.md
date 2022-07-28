@@ -29,11 +29,29 @@ How?
 
 
 
-
+--------------
 Twitter: @pradip_
 TradingView username: pradipandsuvra
 Youtube: https://www.youtube.com/channel/UCXg6ZfqGJiidI-2o03a9jWQ
 
 
 Enjoy.
+
+---------------
+
+
+Brief Introduction of Various Scripts:
+
+# stragegy_ht_ce_pd_rsi_combined.ps : It's a stragegy works well with Heiken Ashi (HA) candles in 15m timeframe, a nice blending of multiple interesting indicators, combined as strategy. It has enough knobs to control it's strict (less trades, better accuracy) or relaxed (more trades, false positives).
+
+# stragegy_scalping_1m_HA_SMA_RSI.ps : It's a very simple Heiken Ashi (HA), 1m timeframe scalping stragegy works well for impatient fellows. 
+
+# my_candlestick.ps : It's plain, old Candlestick pattern identifier. Just that it can smartly detect not only single and double candles patterns, but also 3-candle patterns (e.g Morning Star, Evening Star). It marked all the patterns nicely with dotted boxes such that anyone new to this can use to learn it. It also provides control of which all patterns you're interested in (e.g you can only keep inside-candle and engulping patterns)
+
+# indicator_bb_dc_rsi_ssma_ema.ps: This is an indicator combining Bollinger Band, Donchian Channel, RSI, simple-smoothen moving average and exponential moving average. It has all you need .. you can just control which all suits your taste (e.g. Donchian with EMA or Bollinger Band with RSI). 
+
+
+
+
+
 
