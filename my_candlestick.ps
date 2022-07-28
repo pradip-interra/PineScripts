@@ -1,0 +1,173 @@
+//@version=5
+
+// This is to identify multiple candlestick patterns. Free and Open Source, comes without any gurantee. 
+// Definitions are taken from: https://zerodha.com/varsity/chapter
+
+
+indicator(shorttitle="CandlePatterns", title = "Candlestick Patterns", overlay = true)
+
+// Inputs
+OnBarClosing = input.bool(defval=true, title="Candlestick pattern detection only after bar closing", tooltip="The candlestick will be drawn only after barstate.isconfirmed. Default: True")
+DojiSize = input.float(defval=0.1, minval=0.01, step=0.01, maxval=1.0, title="Doji size", tooltip="How thin the body will be compared to the whole candle high-low. Default is 10%.")
+DojiGravestoneDragonFlySize = input.float(defval=0.2, minval=0.01, step=0.01, maxval=1.0, title="GraveStone/Dragonfly size", tooltip="How close the Doji is to the high (Dragonfly) or low (Gravestone) of the candle, default 20%.")
+MarubozoSize = input.float(defval=0.9, minval=0.0, step=0.01, title="Marubozo Threshold", tooltip="How much the candle body will be considered as marubozo compared to the whole candle size. Default: 90%.")
+HammerBodySize = input.float(group="Hammer", defval=0.2, step=0.01, minval=0.01, maxval=1.0, title="Hammer Body Size", tooltip="How thin the Hammer body will be.Default is 20%.")
+HammerBodyPlacement = input.float(group="Hammer", defval=0.2, step=0.01, minval=0.01, maxval=1.0, title="Hammer Body Placement", tooltip="How below (or above) from high (or low) it will be placed. Default is 20%.")
+SpinningTopRangeToBodyRatio = input.int(defval=3, minval=1, step=1, maxval=10, title="SpinningTop", tooltip="The ratio of Candle's range to body. Default is 3:1.")
+StrictEngulf = input.bool(defval=true, title="Strict Engulfing", tooltip="For Strict mode, the whole previous candle including wicks will be engulfed inside the body part of the current big candle. For non-strict mode, the current candle just engulfs the previous candle, possibly by wicks. Default: Strict")
+StrictInsideCandle = input.bool(defval=true, title="Strict Inside Candle(Harami)", tooltip="For Strict mode, the whole current candle including wicks will be inside the body part of the previous big candle. For non-strict mode, the current candle just inside the previous candle, possibly by wicks. Default: Strict")
+KickerGap = input.int(defval=1, step=1, minval=0, maxval=100, title="Kicker Gap (in percent)", tooltip="How much Gap Up or Gap Down the current candle compared to previous candle, in percentage. Default: 1 %.")
+TweezerGap = input.int(defval=10, step=1, minval=0, title="Tweezer Gap (in points)", tooltip="In Tweezer Top/Bottom, the high or low should be same. However that seldom happens. This flag is to provide the tolerance limit, in points. Default: 10 points.")
+
+
+// Utils
+green(open, close) => close > open ? true : false
+red(open, close) => close < open ? true : false
+body(open, close) => math.abs(open - close)
+lowerwick = green(open, close) ? open - low : close - low
+upperwick = green(open, close) ? high - close : high - open
+crange = high - low
+crangep = high[1] - low[1] // previous candle's candle-range
+bullish = close > open ? true : false
+bearish = close < open ? true : false
+
+
+oc = OnBarClosing ? barstate.isconfirmed : true
+
+// Single Candle Patterns ///////////////////////////////////////////////////////////////////////////////////////
+// Doji Logic
+doji(open, close, high, low) => body(open, close) <= crange * DojiSize
+gravestone(o, c, h, l) => doji(o, c, h, l) and lowerwick / crange <= DojiGravestoneDragonFlySize
+dragonfly(o, c, h, l) => doji(o, c, h, l) and upperwick / crange <= DojiGravestoneDragonFlySize
+normaldoji(o, c, h, l) => doji(o, c, h, l) and (not gravestone(o, c, h, l)) and (not dragonfly(o, c, h, l))
+plotchar(oc and normaldoji(open, close, high, low), title='Normal Doji', text='Doji', color=color.gray)
+plotchar(oc and gravestone(open, close, high, low), title='GraveStone Doji', text='GS\nDoji', color=color.gray)
+plotchar(oc and dragonfly(open, close, high, low), title='DragonFly Doji', text='DF\nDoji', color=color.gray)
+
+// Marubozo Logic
+marubozo(o, c, h, l) => body(o, c) / crange >= MarubozoSize
+plotshape(oc and marubozo(open, close, high, low), title='Marubozo', text='Marubozo', location=location.abovebar, style=shape.triangledown, color=color.blue)
+
+// Hammer & Inverted Hammer (Pinbar)
+hammer(o, c, h, l, inverted = false) => (not doji(o,c,h,l)) and (body(o, c) <= crange * HammerBodySize) and ((inverted ? lowerwick : upperwick) / crange <= HammerBodyPlacement)
+plotshape(oc and hammer(open, close, high, low), title='Hammer', text='Hammer', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
+plotshape(oc and hammer(open, close, high, low, true), title='I-Hammer\n/Pinbar', text='I-Hammer\n/Pinbar', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
+
+// Spinning Top
+wickratio = upperwick < lowerwick ? upperwick / lowerwick : lowerwick / upperwick
+spinner(o, c, h, l) => (not doji(o,c,h,l)) and (crange / body(o, c) >= SpinningTopRangeToBodyRatio) and (wickratio >= 0.9)
+plotshape(oc and spinner(open, close, high, low), title='Spinner', text='Spinner', location=location.belowbar, style=shape.cross, color=color.maroon, textcolor=color.maroon)
+
+
+// Two Candles Patterns ///////////////////////////////////////////////////////////////////////////////////////
+lowest = math.min(low,low[1])
+highest = math.max(high,high[1])
+
+// Engulfing Pattern
+// op: Open Prev, cp: Close Prev .. so on
+bullish_engulfing(op, cp, hp, lp, o, c, h, l) => red(op, cp) and green(o, c) and (StrictEngulf ? (c > hp and o < lp) : (h > hp and l < lp))
+bearish_engulfing(op, cp, hp, lp, o, c, h, l) => green(op, cp) and red(o, c) and (StrictEngulf ? (o > hp and c < lp) : (h > hp and l < lp))
+bullish_engulf_data = bullish_engulfing(open[1], close[1], high[1], low[1], open, close, high, low)
+bearish_engulf_data = bearish_engulfing(open[1], close[1], high[1], low[1], open, close, high, low)
+plotshape(oc and bullish_engulf_data, title='Bull-Engulf', text='Bull-Engulf', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+if (bullish_engulf_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+plotshape(bearish_engulf_data, title='Bear-Engulf', text='Bear-Engulf', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
+if (bearish_engulf_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+
+
+//// Piercing and Dark Cloud Cover Pattern
+
+// These patterns are similar to the engulfing patten. The differences are (ditto from Zerodha Versity):
+// The piercing pattern is very similar to the bullish engulfing pattern with a minor variation. In a bullish engulfing pattern, the P2’s green candle engulfs P1’s red candle. 
+// However in a piercing pattern P2’s green candle partially engulfs P1’s red candle. However, engulfing should be between 50% and less than 100%. 
+// For example, if P1’s range (Open-Close) is 12, P2’s range should be at least 6 or higher,r but below 12.
+prev_candle_middle = (open[1] + close[1]) / 2
+bullish_piercing(op, cp, hp, lp, o, c, h, l) => (not doji(op,cp,hp,lp)) and (not doji(o,c,h,l)) and red(op, cp) and green(o, c) and (o <= lp and c > prev_candle_middle and c < op) //
+bullish_piering_data = bullish_piercing(open[1], close[1], high[1], low[1], open, close, high, low)
+plotshape(oc and bullish_piering_data, title='Piercing', text='Piercing', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+if (bullish_piering_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+
+
+// Dark Cloud Cover
+// Definition (from Zerodha Versity):
+// The dark cloud cover is very similar to the bearish engulfing pattern with a minor variation. 
+// In a bearish engulfing pattern the red candle on P2 engulfs P1’s green candle. 
+// However, in a dark cloud cover, the red candle on P2 engulfs about 50 to 100% of P1’s blue candle.
+dark_cloud_cover(op, cp, hp, lp, o, c, h, l) => (not doji(op,cp,hp,lp)) and (not doji(o,c,h,l)) and green(op, cp) and red(o, c) and (o >= hp and c < prev_candle_middle and c > op)
+ddc_data = dark_cloud_cover(open[1], close[1], high[1], low[1], open, close, high, low)
+plotshape(oc and ddc_data, title='Dark Cloud Cover', text='DCC', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
+if (ddc_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+
+
+// Inside Candle (Harami) Pattern
+// op: Open Prev, cp: Close Prev .. so on
+bullish_inside_candle(op, cp, hp, lp, o, c, h, l) => red(op, cp) and green(o, c) and (StrictInsideCandle ? (op > h and cp < l) : (hp > h and lp < l))
+bearish_inside_candle(op, cp, hp, lp, o, c, h, l) => green(op, cp) and red(o, c) and (StrictInsideCandle ? (cp > h and op < l) : (hp > h and lp < l))
+bullish_inside_data = bullish_inside_candle(open[1], close[1], high[1], low[1], open, close, high, low)
+bearish_inside_data = bearish_inside_candle(open[1], close[1], high[1], low[1], open, close, high, low)
+plotshape(oc and bullish_inside_data, title='Bull-IC', text='Bull-IC', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+if (bullish_inside_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+plotshape(oc and bearish_inside_data, title='Bear-IC', text='Bear-IC', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
+if (bearish_inside_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+
+
+// Bullish and Bearish Kicker
+
+bullish_kicker(op, cp, o, c) => red(op, cp) and green(o, c) and (o > (op * (1 + (KickerGap / 100))))
+bullish_kicker_data = bullish_kicker(open[1], close[1], open, close)
+plotshape(oc and bullish_kicker_data, title='Bullish Kicker', text='Bull\nKicker', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
+if (bullish_kicker_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+
+bearish_kicker(op, cp, o, c) => green(op, cp) and red(o, c) and (o < (op * (1 - (KickerGap / 100))))
+bearish_kicker_data = bearish_kicker(open[1], close[1], open, close)
+plotshape(oc and bearish_kicker_data, title='Bearish Kicker', text='Bear\nKicker', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
+if (bearish_kicker_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+
+
+// Tweezers Top and Bottom
+tweezer_top(op, cp, hp, lp, o, c, h, l) => (not doji(op,cp,hp,lp)) and (not doji(o,c,h,l)) and green(op, cp) and red(o, c) and (math.abs(crange-crangep) <= TweezerGap) and (math.abs(h-hp) <= TweezerGap)
+tweezer_top_data = tweezer_top(open[1], close[1], high[1], low[1], open, close, high, low)
+plotshape(oc and tweezer_top_data, title='Tweezer Top', text='Bear\nTweezer', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
+if (tweezer_top_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+
+tweezer_bottom(op, cp, hp, lp, o, c, h, l) => (not doji(op,cp,hp,lp)) and (not doji(o,c,h,l)) and red(op, cp) and green(o, c) and (math.abs(crange-crangep) <= TweezerGap) and (math.abs(l-lp) <= TweezerGap)
+tweezer_bottom_data = tweezer_bottom(open[1], close[1], high[1], low[1], open, close, high, low)
+plotshape(oc and tweezer_bottom_data, title='Tweezer Bottom', text='Bull\nTweezer', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
+if (tweezer_bottom_data and barstate.isconfirmed)
+    box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
+
+
+
+////// Tripple CandleStick Pattern
+
+// Morning Star (ms_)
+// Explanation (from https://zerodha.com/varsity/chapter/multiple-candlestick-patterns-part-3)
+ms_day1 = red(open[2],close[2]) and (not doji(open[2], close[2], high[2], low[2]))
+ms_day2 = (open[1] < close[2]) and (doji(open[1], close[1], high[1], low[1]) or spinner(open[1], close[1], high[1], low[1]))
+ms_day3 = (green(open[1],close[1]) ? open > close[1] : open > open[1]) and green(open, close) and (close > open[2])
+ms_cond = ms_day1 and ms_day2 and ms_day3
+plotshape(oc and ms_cond, title='Morning-Star', text='Morning-Star', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+lowestp = math.min(low,low[1],low[2])
+highestp = math.max(high,high[1],high[2])
+if (ms_cond and barstate.isconfirmed)
+    box.new(bar_index-2, highestp, bar_index, lowestp, border_color=color.green, border_style=line.style_dashed, border_width=2, bgcolor=color.new(color.white, 100))
+
+// Evening Star (es_)
+// Explanation (from https://zerodha.com/varsity/chapter/multiple-candlestick-patterns-part-3)
+es_day1 = green(open[2],close[2]) and (not doji(open[2], close[2], high[2], low[2]))
+es_day2 = (open[1] > close[2]) and (doji(open[1], close[1], high[1], low[1]) or spinner(open[1], close[1], high[1], low[1]))
+es_day3 = (green(open[1],close[1]) ? open < open[1] : open < close[1]) and red(open, close) and (close < open[2])
+es_cond = es_day1 and es_day2 and es_day3
+plotshape(oc and es_cond, title='Evening-Star', text='Evening-Star', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
+if (es_cond and barstate.isconfirmed)
+    box.new(bar_index-2, highestp, bar_index, lowestp, border_color=color.red, border_style=line.style_dashed, border_width=2, bgcolor=color.new(color.white, 100))
+

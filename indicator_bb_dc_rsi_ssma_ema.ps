@@ -1,0 +1,84 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("scalping-BB-DC-RSI-EMA-SSMA", overlay=true)
+
+src = input(close,title="Source (close, high, low, open etc.")
+len = input.int(defval=5, minval=1, title="MA Length, in period, default:5")
+higherTimeFrame = input.timeframe(defval="5", title="Higher Timeframe to identify trend")
+considerRsi = input.bool(defval=true, title="RSI - To be or not to be")
+showBB = input.bool(defval=true, title="Bollinger Band - To be or not to be")
+drawDC = input.bool(defval=true, title="Donchian Channel - To be or not to be")
+drawATR = input.bool(defval=true, title="ATR - To be or not to be")
+
+rsi_len = input.int(group="RSI", defval=14, minval=1, title="RSI Length, in period, default:14")
+rsi_neutral = input.int(group="RSI", defval=50, minval=20, maxval=80, title="RSI Neutral, default is 50.")
+
+BBlength = input.int(group="Bollinger Band", defval=20, minval=1,title="Bollinger Period Length, default 20")
+BBmult = input.float(group="Bollinger Band", defval=2.0, minval=0.001, maxval=50,title="Bollinger Bands Standard Deviation, default is 2.0")
+
+DClength = input.int(group="Donchian Channel", defval=20, minval=1,title="Donchian Channel Length, default 20")
+
+atrLength = input.int(group="ATR", title="ATR Length", defval=14, minval=1)
+lookback = input.int(group="ATR", title="How Far To Look Back For High/Lows:", defval=7, minval=1)
+useStructure = input.bool(group="ATR", title="Use Structure (look back to get the SL)?", defval=true)
+atrStopMultiplier = input.float(group="ATR", title="ATR SL Multiplier (ATR x )?", defval=1.0, minval=0.1)
+
+
+smma = 0.0
+sma = ta.sma(src, len)
+smma := na(smma[1]) ? sma : (smma[1] * (len - 1) + src) / len
+// plot(smma, color=color.black, title="Simple Smoothen MA")
+
+ema = ta.ema(src, len)
+// plot(ema, color=color.green, title="Exp MA")
+
+rsi = considerRsi ? ta.rsi(src, rsi_len) : na
+
+longCond = considerRsi ? ta.crossover(ema, smma) and (rsi > rsi_neutral+1.0) : ta.crossover(ema, smma)
+shortCond = considerRsi ? ta.crossunder(ema, smma) and (rsi < rsi_neutral-1.0) : ta.crossunder(ema, smma)
+
+
+// Bollinger Band of present time frame
+BBbasis = ta.sma(src, BBlength)
+BBdev = BBmult * ta.stdev(src, BBlength)
+BBupper = BBbasis + BBdev
+BBlower = BBbasis - BBdev
+BBWidth = ((BBupper - BBlower) / BBbasis)
+p1 = plot(BBupper, color=color.aqua,title="Bollinger Bands Upper Line", display=showBB?display.all:display.none)
+p2 = plot(BBlower, color=color.aqua,title="Bollinger Bands Lower Line", display=showBB?display.all:display.none)
+// p3 = plot(drawBB and BBWidth, color=color.purple,title="Bollinger Bands Width")
+
+
+// BB of higher timeframe
+src_5mins = request.security(syminfo.tickerid, higherTimeFrame, src)
+BBbasis_5mins = ta.sma(src_5mins, BBlength)
+BBdev_5mins = BBmult * ta.stdev(src_5mins, BBlength)
+BBupper_5mins = BBdev_5mins + BBdev_5mins
+BBlower_5mins = BBdev_5mins - BBdev_5mins
+// plot(BBupper_5mins, color=color.maroon,title="Upper timeframe Bollinger Bands Upper Line")
+// plot(BBlower_5mins, color=color.maroon,title="Upper timeframe Bollinger Bands Lower Line")
+plot(src_5mins, color=color.olive, linewidth=2, title="Higher Timeframe Trend", display=showBB?display.all:display.none)
+
+
+// Donchian Channel
+dc_lower = ta.lowest(DClength)
+dc_upper = ta.highest(DClength)
+basis = math.avg(dc_upper, dc_lower)
+dc_u = plot(dc_upper, title="Donchian Channel Upper Band", color=color.purple, display=drawDC?display.all:display.none)
+dc_l = plot(dc_lower, title="Donchian Channel Lower Band", color=color.purple, display=drawDC?display.all:display.none)
+
+// ATR Based SL
+atr = ta.atr(atrLength)
+highestHigh = ta.highest(high, lookback)
+lowestLow = ta.lowest(low, lookback)
+longStop = (useStructure ? lowestLow : close) - atr * atrStopMultiplier
+shortStop = (useStructure ? highestHigh : close) + atr * atrStopMultiplier
+plot(longStop, title="ATR Buy SL", color=color.green, style=plot.style_cross, display=drawATR?display.all:display.none)
+plot(shortStop, title="ATR Sell SL", color=color.red, style=plot.style_cross)
+
+
+// Buy Sell Plot
+plotshape(longCond, title='Buy', text='Buy', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+plotshape(shortCond, title='Sell', text='Sell', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
+

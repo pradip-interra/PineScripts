@@ -1,0 +1,66 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © pradipandsuvra
+
+//@version=5
+strategy(title="1m-HA-Scalping-SMA-RSI", shorttitle="1m-HACandle-Scalping", overlay=true)
+
+// Inputs
+endOfDay = input.int(defval=1500, title="Close all trades, default is 3:00 PM, 1500 hours (integer)")
+lotSize = input.int(title='Lot Size', step=1, defval=1)
+
+sma = ta.sma(close, 9)
+src_trend = request.security(syminfo.tickerid, "60", close)
+sma_trend = ta.sma(src_trend, 50)
+sma_slope = (sma_trend - sma_trend[50])/50
+
+plot(sma, color=color.blue)
+plot(sma_trend, color=color.green)
+// label.new(bar_index, high, str.tostring(sma_slope))
+
+rsi = ta.rsi(close, 14)
+
+longCond = barstate.isconfirmed and (sma_slope > 0) and (rsi >= 70) and ta.crossover(close, sma)
+shortCond = barstate.isconfirmed and (sma_slope < 0) and (rsi <= 30) and ta.crossunder(close, sma)
+
+plotshape(longCond, title='Buy', text='Buy', location=location.belowbar, style=shape.labelup, size=size.tiny, color=color.green, textcolor=color.new(color.white, 0))
+plotshape(shortCond, title='Sell', text='Sell', location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, textcolor=color.new(color.white, 0))
+
+
+// ATR for SL
+atr = ta.atr(14)
+highestHigh = ta.highest(high, 7)
+lowestLow = ta.lowest(low, 7)
+longStop = lowestLow - (atr * 1)
+shortStop = highestHigh + (atr * 1)
+// plot(longStop, title="ATR Buy SL", color=color.green, style=plot.style_cross)
+// plot(shortStop, title="ATR Sell SL", color=color.red, style=plot.style_cross)
+
+
+// Trade execute
+
+h = hour(time('1'), syminfo.timezone)
+m = minute(time('1'), syminfo.timezone)
+hourVal = h * 100 + m
+if (hourVal < endOfDay)
+    // Entry
+    var float sl = na
+    var float target = na
+    if (longCond)
+        strategy.entry("enter long", strategy.long, lotSize, limit=na, stop=na, comment="Enter Long")
+        sl := longStop
+        target := close + (close - longStop)
+    if (shortCond)
+        strategy.entry("enter short", strategy.short, lotSize, limit=na, stop=na, comment="Enter Short")
+        sl := shortStop
+        target := close - (shortStop - close)
+
+    // Exit: target or SL
+    if ((close >= target) or (close <= sl))
+        strategy.close("enter long", comment=close < sl ? "Long SL hit" : "Long target hit")
+    if ((close <= target) or (close >= sl))
+        strategy.close("enter short", comment=close > sl ? "Short SL hit" : "Short target hit")
+else
+    // Close all open position at the end if Day
+    strategy.close_all(comment = "Close all entries at end of day.")
+
+

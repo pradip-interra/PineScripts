@@ -1,0 +1,242 @@
+//@version=5
+// This strategy is an amagametation of multiple Indicators (some are of older version v4) from different Authors. 
+// This is an acknowledgement of the Indiators and their respective Authors:
+// HalfTrend by everget (https://www.tradingview.com/script/U1SJ8ubc-HalfTrend)
+// Chandelier Exit by everget (https://www.tradingview.com/script/AqXxNS7j-Chandelier-Exit)
+// Polarity Divergence by TradingView (https://www.tradingview.com/script/84Sr3GS4-Polarity-Divergences/)
+// I took a-prior permissions to use this free sources to put into this combined strategy, covert all to latest PineScript v5 and turn it to a 
+// strategy best suited for Indian Indices like Nifty and BankNifty.
+
+strategy('Strategy: HalfTrend, Chandelier Exit, Polarity Divergence and RSI crossover combined strategy', shorttitle="CE+HT+PD+RSI Strategy", overlay=true , currency=currency.NONE, initial_capital=100000)
+
+amplitude = input(title='Amplitude', defval=2)
+channelDeviation = input(title='Channel Deviation', defval=2)
+showArrows = input(title='Show Arrows', defval=true)
+showChannels = input(title='Show Channels', defval=true)
+
+var int trend = 0
+var int nextTrend = 0
+var float maxLowPrice = nz(low[1], low)
+var float minHighPrice = nz(high[1], high)
+
+var float up = 0.0
+var float down = 0.0
+float atrHigh = 0.0
+float atrLow = 0.0
+float arrowUp = na
+float arrowDown = na
+
+atr2 = ta.atr(100) / 2
+dev = channelDeviation * atr2
+
+highPrice = high[math.abs(ta.highestbars(amplitude))]
+lowPrice = low[math.abs(ta.lowestbars(amplitude))]
+highma = ta.sma(high, amplitude)
+lowma = ta.sma(low, amplitude)
+
+if nextTrend == 1
+    maxLowPrice := math.max(lowPrice, maxLowPrice)
+
+    if highma < maxLowPrice and close < nz(low[1], low)
+        trend := 1
+        nextTrend := 0
+        minHighPrice := highPrice
+        minHighPrice
+else
+    minHighPrice := math.min(highPrice, minHighPrice)
+
+    if lowma > minHighPrice and close > nz(high[1], high)
+        trend := 0
+        nextTrend := 1
+        maxLowPrice := lowPrice
+        maxLowPrice
+
+if trend == 0
+    if not na(trend[1]) and trend[1] != 0
+        up := na(down[1]) ? down : down[1]
+        arrowUp := up - atr2
+        arrowUp
+    else
+        up := na(up[1]) ? maxLowPrice : math.max(maxLowPrice, up[1])
+        up
+    atrHigh := up + dev
+    atrLow := up - dev
+    atrLow
+else
+    if not na(trend[1]) and trend[1] != 1
+        down := na(up[1]) ? up : up[1]
+        arrowDown := down + atr2
+        arrowDown
+    else
+        down := na(down[1]) ? minHighPrice : math.min(minHighPrice, down[1])
+        down
+    atrHigh := down + dev
+    atrLow := down - dev
+    atrLow
+
+ht = trend == 0 ? up : down
+
+var color buyColor = color.green
+var color sellColor = color.red
+
+htColor = trend == 0 ? buyColor : sellColor
+htPlot = plot(ht, title='HalfTrend', linewidth=2, color=htColor)
+
+atrHighPlot = plot(showChannels ? atrHigh : na, title='ATR High', style=plot.style_circles, color=color.new(sellColor, 0))
+atrLowPlot = plot(showChannels ? atrLow : na, title='ATR Low', style=plot.style_circles, color=color.new(buyColor, 0))
+
+// fill(htPlot, atrHighPlot, title='ATR High Ribbon', color=color.new(sellColor, 90))
+// fill(htPlot, atrLowPlot, title='ATR Low Ribbon', color=color.new(buyColor, 90))
+
+buySignal = not na(arrowUp) and trend == 0 and trend[1] == 1
+sellSignal = not na(arrowDown) and trend == 1 and trend[1] == 0
+
+plotshape(showArrows and buySignal ? atrLow : na, title='Arrow Up', style=shape.triangleup, location=location.absolute, size=size.tiny, color=color.new(buyColor, 0))
+plotshape(showArrows and sellSignal ? atrHigh : na, title='Arrow Down', style=shape.triangledown, location=location.absolute, size=size.tiny, color=color.new(sellColor, 0))
+
+// alertcondition(buySignal, title='Alert: HalfTrend Buy', message='HalfTrend Buy')
+// alertcondition(sellSignal, title='Alert: HalfTrend Sell', message='HalfTrend Sell')
+
+
+
+/// Polarity Divergence
+// @function    Selects a LTF from the chart's TF.
+// @returns     (simple string) A timeframe string.
+ltfStep() =>
+    int MS_IN_DAY = 1000 * 60 * 60 * 24
+    int tfInMs    = timeframe.in_seconds() * 1000
+    string result =
+      switch
+        tfInMs < MS_IN_DAY      => "1"
+        tfInMs < MS_IN_DAY * 7  => "30"
+        => "D"
+
+// Fetch an array containing the +1/0/-1 polarity of each intrabar.
+float[] polaritiesArray = request.security_lower_tf(syminfo.tickerid, ltfStep(), math.sign(close - open))
+// Color the chart bar orange when the majority of intrabar polarities does not match that of the chart bar.
+barcolor(math.sign(array.sum(polaritiesArray)) != math.sign(close - open) ? color.new(color.white, 100) : na)
+polarityDiverged = math.sign(array.sum(polaritiesArray)) != math.sign(close - open)
+
+
+
+/// Chandelier Exit
+
+length = input(title='ATR Period', defval=1)
+mult = input.float(title='ATR Multiplier', step=0.1, defval=1.85)
+showLabels = input(title='Show Buy/Sell Labels ?', defval=true)
+useClose = input(title='Use Close Price for Extremums ?', defval=false)
+highlightState = input(title='Highlight State ?', defval=false)
+// tradeInTrend = input(title='Trade in direction of trends ?', defval=true)
+rrRatio = input.float(title='Risk:Reward', step=0.1, defval=1)
+checkRSI = input(title='Check RSI (100 and 14)', defval=true)
+showSLTargetLabel = input(title='Show SL/Target labels', defval=false)
+mktAlwaysOn = input.bool(defval=false, title="Markets that never closed (Crypto, Forex, Commodity)", tooltip="Some markers never closes. For those cases, make this checked.")
+endOfDay = input.int(defval=1500, title="Close all trades, default is 3:00 PM, 1500 hours (integer)", tooltip="When you want to square off the postion? For mktAlwaysOn, this flag is ignored.")
+lotSize = input.int(title='Lot Size', step=1, defval=1)
+
+ignoreRsi = input.bool(title='Ignore RSI', group='Ignore Signal', defval=false)
+ignoreTrend = input.bool(title='Ignore Trend', group='Ignore Signal', defval=false)
+ignorePD = input.bool(title='Ignore Polarity Divergence', group='Ignore Signal', defval=false)
+
+atr = mult * ta.atr(length)
+
+longStop = (useClose ? ta.highest(close, length) : ta.highest(length)) - atr
+longStopPrev = nz(longStop[1], longStop)
+longStop := close[1] > longStopPrev ? math.max(longStop, longStopPrev) : longStop
+
+shortStop = (useClose ? ta.lowest(close, length) : ta.lowest(length)) + atr
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := close[1] < shortStopPrev ? math.min(shortStop, shortStopPrev) : shortStop
+
+var int dir = 1
+dir := close > shortStopPrev ? 1 : close < longStopPrev ? -1 : dir
+
+var color longColor = color.green
+var color shortColor = color.red
+
+// longStopPlot = plot(dir == 1 ? longStop : na, title='Long Stop', style=plot.style_linebr, linewidth=2, color=color.new(longColor, 0))
+buySignalCE = dir == 1 and dir[1] == -1
+// plotshape(buySignalCE ? longStop : na, title='Long Stop Start', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(longColor, 0))
+plotshape(buySignalCE and showLabels ? longStop : na, title='Buy Label', text='Buy', location=location.belowbar, style=shape.labelup, size=size.tiny, color=color.new(longColor, 0), textcolor=color.new(color.white, 0))
+
+// shortStopPlot = plot(dir == 1 ? na : shortStop, title='Short Stop', style=plot.style_linebr, linewidth=2, color=color.new(shortColor, 0))
+sellSignalCE = dir == -1 and dir[1] == 1
+// plotshape(sellSignalCE ? shortStop : na, title='Short Stop Start', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(shortColor, 0))
+plotshape(sellSignalCE and showLabels ? shortStop : na, title='Sell Label', text='Sell', location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.new(shortColor, 0), textcolor=color.new(color.white, 0))
+
+midPricePlot = plot(ohlc4, title='', style=plot.style_circles, linewidth=0, display=display.none, editable=false)
+
+// longFillColor = highlightState ? dir == 1 ? longColor : na : na
+// shortFillColor = highlightState ? dir == -1 ? shortColor : na : na
+// fill(midPricePlot, longStopPlot, title='Long State Filling', color=color.new(longFillColor, 100))
+// fill(midPricePlot, shortStopPlot, title='Short State Filling', color=color.new(shortFillColor, 100))
+
+// changeCond = dir != dir[1]
+// alertcondition(changeCond, title='Alert: CE Direction Change', message='Chandelier Exit has changed direction!')
+// alertcondition(buySignal, title='Alert: CE Buy', message='Chandelier Exit Buy!')
+// alertcondition(sellSignal, title='Alert: CE Sell', message='Chandelier Exit Sell!')
+
+
+/// Considering RSI as well
+rsiShortTerm = ta.rsi(close, 14)
+rsiLongTerm = ta.rsi(close, 100)
+
+rsiSignalBuy = ignoreRsi ? true : rsiShortTerm > rsiLongTerm
+rsiSignalSell =  ignoreRsi ? true : rsiShortTerm < rsiLongTerm
+pdSignal = ignorePD ? true : not polarityDiverged
+
+sureBuy = barstate.isconfirmed and rsiSignalBuy and buySignalCE and pdSignal
+sureSell = barstate.isconfirmed and rsiSignalSell and sellSignalCE and pdSignal
+
+sureBuyInTrend = ignoreTrend ? sureBuy : (trend == 0 and (sureBuy or (not sureBuy and sureBuy[1]) or (not sureBuy and not sureBuy[1] and sureBuy[2])))
+sureSellInTrend = ignoreTrend ? sureSell : (trend == 1 and (sureSell or (not sureSell and sureSell[1]) or (not sureSell and not sureSell[1] and sureSell[2])))
+
+// label.new(bar_index, high, str.tostring(sureBuyInTrend))
+// plot(buySignalCE ? 1 : 0, title="buySignalCE", color=color.green)
+// plot (not polarityDiverged ? 1 : 0, color=color.red)
+// plot(rsiShortTerm < rsiLongTerm ? 1 : 0)
+// plot(rsiShortTerm, color=color.green)
+// plot(rsiLongTerm, color=color.blue)
+// label.new(bar_index, high, str.tostring(not polarityDiverged))
+// plot(trend)
+// plot(sureBuy ? 1 : 0, color=color.green)
+// plot(sureBuyInTrend ? 1 : 0, color=color.red)
+// plot((sureBuy or (not sureBuy and sureBuy[1]) or (not sureBuy and not sureBuy[1] and sureBuy[2])) ? 1 : 0, color=color.red)
+
+buyTarget = close + ((close - atrLow) * rrRatio)
+sellTarget = close - ((atrHigh - close) * rrRatio)
+avoidMultipleReportingBuy = sureBuyInTrend and not sureBuyInTrend[1]
+avoidMultipleReportingSell = sureSellInTrend and not sureSellInTrend[1]
+bgcolor(checkRSI and avoidMultipleReportingBuy ? color.new(color.green, 80) : na)
+bgcolor(checkRSI and avoidMultipleReportingSell ? color.new(color.red, 80) : na)
+if (checkRSI and showSLTargetLabel and avoidMultipleReportingBuy)
+    label.new(x=bar_index, y=low-(low*0.02), style=label.style_label_up, color=color.new(color.green, 0), text="Long. SL:" + str.tostring(atrLow, "#.##") + ". Target:" + str.tostring(buyTarget, "#.##"))
+if (checkRSI and showSLTargetLabel and avoidMultipleReportingSell)
+    label.new(x=bar_index, y=high+(high*0.02), style=label.style_label_down, color=color.new(color.red, 0), text="Short. SL:" + str.tostring(atrHigh, "#.##") + ". Target:" + str.tostring(sellTarget, "#.##"))
+
+
+// Trading
+h = hour(time('1'), syminfo.timezone)
+m = minute(time('1'), syminfo.timezone)
+hourVal = h * 100 + m
+if (mktAlwaysOn or (hourVal < endOfDay))
+    // Entry
+    var float sl = na
+    if (sureBuyInTrend)
+        strategy.entry("enter long", strategy.long, lotSize, limit=na, stop=na, comment="Enter Long")
+        sl := atrLow
+    if (sureSellInTrend)
+        strategy.entry("enter short", strategy.short, lotSize, limit=na, stop=na, comment="Enter Short")
+        sl := atrHigh
+
+    // Exit: target or SL
+    longExitComment = (close < sl) ? "Long SL hit" : sureSellInTrend ? "Long target hit" : na
+    shortExitComment = (close > sl) ? "Short SL hit" : sureBuyInTrend ? "Short target hit" : na
+    if ((sureSellInTrend or (close < sl)))
+        strategy.close("enter long", comment=close < sl ? "Long SL hit" : "Long target hit")
+    if (sureBuyInTrend or (close > sl))
+        strategy.close("enter short", comment=close > sl ? "Short SL hit" : "Short target hit")
+else if(not mktAlwaysOn)
+    // Close all open position at the end if Day
+    strategy.close_all(comment = "Close all entries")
+
