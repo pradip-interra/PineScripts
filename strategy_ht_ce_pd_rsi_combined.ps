@@ -127,16 +127,20 @@ showLabels = input(title='Show Buy/Sell Labels ?', defval=true)
 useClose = input(title='Use Close Price for Extremums ?', defval=false)
 highlightState = input(title='Highlight State ?', defval=false)
 // tradeInTrend = input(title='Trade in direction of trends ?', defval=true)
-rrRatio = input.float(title='Risk:Reward', step=0.1, defval=1)
+rrRatio = input.float(title='Risk:Reward', step=0.1, defval=1.5)
 checkRSI = input(title='Check RSI (100 and 14)', defval=true)
 showSLTargetLabel = input(title='Show SL/Target labels', defval=false)
 mktAlwaysOn = input.bool(defval=false, title="Markets that never closed (Crypto, Forex, Commodity)", tooltip="Some markers never closes. For those cases, make this checked.")
 endOfDay = input.int(defval=1500, title="Close all trades, default is 3:00 PM, 1500 hours (integer)", tooltip="When you want to square off the postion? For mktAlwaysOn, this flag is ignored.")
 lotSize = input.int(title='Lot Size', step=1, defval=1)
+n = input.int(title="William's Fractal Periods", defval=2, minval=2, maxval=14)
+
 
 ignoreRsi = input.bool(title='Ignore RSI', group='Ignore Signal', defval=false)
 ignoreTrend = input.bool(title='Ignore Trend', group='Ignore Signal', defval=false)
 ignorePD = input.bool(title='Ignore Polarity Divergence', group='Ignore Signal', defval=false)
+ignoreFractal = input.bool(title='Ignore Williams Fractal drawing', group='Ignore Signal', defval=false)
+
 
 atr = mult * ta.atr(length)
 
@@ -176,6 +180,70 @@ midPricePlot = plot(ohlc4, title='', style=plot.style_circles, linewidth=0, disp
 // alertcondition(buySignal, title='Alert: CE Buy', message='Chandelier Exit Buy!')
 // alertcondition(sellSignal, title='Alert: CE Sell', message='Chandelier Exit Sell!')
 
+///////////////////////////////////////// Williams Fractal lines
+
+
+// UpFractal
+bool upflagDownFrontier = true
+bool upflagUpFrontier0 = true
+bool upflagUpFrontier1 = true
+bool upflagUpFrontier2 = true
+bool upflagUpFrontier3 = true
+bool upflagUpFrontier4 = true
+
+for i = 1 to n
+    upflagDownFrontier := upflagDownFrontier and (high[n-i] < high[n])
+    upflagUpFrontier0 := upflagUpFrontier0 and (high[n+i] < high[n])
+    upflagUpFrontier1 := upflagUpFrontier1 and (high[n+1] <= high[n] and high[n+i + 1] < high[n])
+    upflagUpFrontier2 := upflagUpFrontier2 and (high[n+1] <= high[n] and high[n+2] <= high[n] and high[n+i + 2] < high[n])
+    upflagUpFrontier3 := upflagUpFrontier3 and (high[n+1] <= high[n] and high[n+2] <= high[n] and high[n+3] <= high[n] and high[n+i + 3] < high[n])
+    upflagUpFrontier4 := upflagUpFrontier4 and (high[n+1] <= high[n] and high[n+2] <= high[n] and high[n+3] <= high[n] and high[n+4] <= high[n] and high[n+i + 4] < high[n])
+flagUpFrontier = upflagUpFrontier0 or upflagUpFrontier1 or upflagUpFrontier2 or upflagUpFrontier3 or upflagUpFrontier4
+
+upFractal = (not ignoreFractal) and (upflagDownFrontier and flagUpFrontier)
+
+
+// downFractal
+bool downflagDownFrontier = true
+bool downflagUpFrontier0 = true
+bool downflagUpFrontier1 = true
+bool downflagUpFrontier2 = true
+bool downflagUpFrontier3 = true
+bool downflagUpFrontier4 = true
+
+for i = 1 to n
+    downflagDownFrontier := downflagDownFrontier and (low[n-i] > low[n])
+    downflagUpFrontier0 := downflagUpFrontier0 and (low[n+i] > low[n])
+    downflagUpFrontier1 := downflagUpFrontier1 and (low[n+1] >= low[n] and low[n+i + 1] > low[n])
+    downflagUpFrontier2 := downflagUpFrontier2 and (low[n+1] >= low[n] and low[n+2] >= low[n] and low[n+i + 2] > low[n])
+    downflagUpFrontier3 := downflagUpFrontier3 and (low[n+1] >= low[n] and low[n+2] >= low[n] and low[n+3] >= low[n] and low[n+i + 3] > low[n])
+    downflagUpFrontier4 := downflagUpFrontier4 and (low[n+1] >= low[n] and low[n+2] >= low[n] and low[n+3] >= low[n] and low[n+4] >= low[n] and low[n+i + 4] > low[n])
+flagDownFrontier = downflagUpFrontier0 or downflagUpFrontier1 or downflagUpFrontier2 or downflagUpFrontier3 or downflagUpFrontier4
+
+downFractal = (not ignoreFractal) and (downflagDownFrontier and flagDownFrontier)
+
+plotshape(downFractal, style=shape.triangledown, location=location.belowbar, offset=-n, color=#F44336, size = size.small)
+plotshape(upFractal, style=shape.triangleup,   location=location.abovebar, offset=-n, color=#009688, size = size.small)
+
+
+// label1 = downFractal ? label.new(bar_index, low, str.tostring(downFractal)) : na
+
+/// Draw lines according to Fractals
+var line fractalSupportTrendline = na
+var line fractalResistanceTrendline = na
+var float lastFractalHigh = na
+var float lastFactralLow = na
+if (downFractal)
+    fractalSupportTrendline := line.new(bar_index-n, low[n], bar_index+10, low[n], extend=extend.right, color=color.red, width=1, style=line.style_arrow_right)
+    lastFactralLow := low[n]
+    if (not na(fractalSupportTrendline[1]))
+        line.delete(fractalSupportTrendline[1])
+if (upFractal)
+    fractalResistanceTrendline := line.new(bar_index-n, high[n], bar_index+10, high[n], extend=extend.right, color=color.green, width=1, style=line.style_arrow_right)
+    lastFractalHigh := high[n]
+    if (not na(fractalResistanceTrendline[1]))
+        line.delete(fractalResistanceTrendline[1])
+
 
 /// Considering RSI as well
 rsiShortTerm = ta.rsi(close, 14)
@@ -184,6 +252,8 @@ rsiLongTerm = ta.rsi(close, 100)
 rsiSignalBuy = ignoreRsi ? true : rsiShortTerm > rsiLongTerm
 rsiSignalSell =  ignoreRsi ? true : rsiShortTerm < rsiLongTerm
 pdSignal = ignorePD ? true : not polarityDiverged
+fractalResistenceBreakToBuySignal = ignoreFractal ? true :  (close > lastFractalHigh)
+fractalSupportBreakToSellSignal = ignoreFractal ? true :  (close < lastFactralLow)
 
 sureBuy = barstate.isconfirmed and rsiSignalBuy and buySignalCE and pdSignal
 sureSell = barstate.isconfirmed and rsiSignalSell and sellSignalCE and pdSignal
@@ -243,4 +313,3 @@ if (mktAlwaysOn or (hourVal < endOfDay))
 else if(not mktAlwaysOn)
     // Close all open position at the end if Day
     strategy.close_all(comment = "Close all entries")
-
