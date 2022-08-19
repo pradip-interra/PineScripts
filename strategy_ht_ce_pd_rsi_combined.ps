@@ -225,17 +225,21 @@ if (mktAlwaysOn or (hourVal < endOfDay))
     if (sureBuyInTrend)
         strategy.entry("enter long", strategy.long, lotSize, limit=na, stop=na, comment="Enter Long")
         sl := atrLow
+        alert('Buy:' + syminfo.ticker + ' ,SL:' + str.tostring(math.floor(atrLow[0])) + ', Target:' + str.tostring(math.floor(buyTarget)), alert.freq_once_per_bar)
     if (sureSellInTrend)
         strategy.entry("enter short", strategy.short, lotSize, limit=na, stop=na, comment="Enter Short")
         sl := atrHigh
+        alert('Sell:' + syminfo.ticker + ' ,SL:' + str.tostring(math.floor(atrHigh[0])) + ', Target:' + str.tostring(math.floor(sellTarget)), alert.freq_once_per_bar)
 
     // Exit: target or SL
     longExitComment = (close < sl) ? "Long SL hit" : sureSellInTrend ? "Long target hit" : na
     shortExitComment = (close > sl) ? "Short SL hit" : sureBuyInTrend ? "Short target hit" : na
     if ((sureSellInTrend or (close < sl)))
         strategy.close("enter long", comment=close < sl ? "Long SL hit" : "Long target hit")
+
     if (sureBuyInTrend or (close > sl))
         strategy.close("enter short", comment=close > sl ? "Short SL hit" : "Short target hit")
+
 else if(not mktAlwaysOn)
     // Close all open position at the end if Day
     strategy.close_all(comment = "Close all entries")
