@@ -45,5 +45,7 @@ Enjoy.
 2. stragegy_scalping_1m_HA_SMA_RSI.ps : It's a very simple Heiken Ashi (HA), 1m timeframe scalping stragegy works well for impatient fellows. 
 3. my_candlestick.ps : It's plain, old Candlestick pattern identifier. Just that it can smartly detect not only single and double candles patterns, but also 3-candle patterns (e.g Morning Star, Evening Star). It marked all the patterns nicely with dotted boxes such that anyone new to this can use to learn it. It also provides control of which all patterns you're interested in (e.g you can only keep inside-candle and engulping patterns)
 4. indicator_bb_dc_rsi_ssma_ema.ps: This is an indicator combining Bollinger Band, Donchian Channel, RSI, simple-smoothen moving average and exponential moving average. It has all you need .. you can just control which all suits your taste (e.g. Donchian with EMA or Bollinger Band with RSI).
+5. RSI_based_support_resistance: This indicator tracks when the stock is overbought (RSI > 70) or oversold (RSI < 30), picks up the highest/lowest points of the OB/OS regions and draw resistance/support (or supply/demand) lines respectively.
+
 
 
