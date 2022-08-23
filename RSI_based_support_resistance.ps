@@ -1,0 +1,93 @@
+//@version=5
+// The purpose of the Script is to draw the support and resistance line when RSI is oversold, overbought region respectively.
+
+indicator(title="RSI based support resistance levels", shorttitle="RSI-Support-Resistance", format=format.price, precision=2, overlay=true)
+
+rsiLen = input.int(defval=14, minval=1, title="RSI Length", group="RSI Settings")
+rsiOBLimit = input.float(defval=70.0, minval=1.0, title="Overbought threshold", group="RSI Settings")
+rsiOSLimit = input.float(defval=30.0, minval=1.0, title="Oversold threshold", group="RSI Settings")
+extendTrendlines = input.bool(defval=false, title="Extend support/resistance lines to right", group="Trendline")
+defaultTrendlineLength = input.int(defval=20, minval=1, title="Defauft support/resistance lines length", group="Trendline")
+supportLineColor = input.color(defval=color.red, title="Support Line color", group="Trendline")
+lineStyleOption = input.string(defval="solid (─)", title="Support/Resistance Lines Style", options=["solid (─)", "dotted (┈)", "dashed (╌)"])
+
+resistanceLineColor = input.color(defval=color.green, title="Resistance Line color", group="Trendline")
+
+
+lineStyle = lineStyleOption == "dotted (┈)" ? line.style_dotted :
+     lineStyleOption == "dashed (╌)" ? line.style_dashed :
+         line.style_solid
+
+
+/////// Main code
+rsi = ta.rsi(close, rsiLen)
+
+//////////////////////  Oversold (OS) region handling
+var float[] rsiOSRsiValues = array.new_float(0)
+var float[] rsiOSLowPrices = array.new_float(0)
+var int[] OSRegionBarIndices = array.new_int(0)
+var int rsiOSRegionEntryBarIndex = na
+var int rsiOSRegionExitBarIndex = na
+
+if ((ta.crossunder(rsi, rsiOSLimit) or rsi < rsiOSLimit) and barstate.isconfirmed)
+    // Is inside the RSI OS region, keep on recording the RSI value and price on the respective arrays
+    rsiOSRegionEntryBarIndex := bar_index
+    array.push(rsiOSRsiValues, rsi)
+    array.push(rsiOSLowPrices, low)
+    array.push(OSRegionBarIndices, bar_index)
+
+if (ta.crossover(rsi, rsiOSLimit) and (not na(rsiOSRegionEntryBarIndex)) and barstate.isconfirmed)
+    // Now RSI comes up from the OS region. So it's good time to do the calculation. Which calculation?
+    // - Find out the lowest RSI value from the RSI array
+    // - Get the corresponding low price from the price array
+    // - Get the corresponding bar_index from bar_index array
+    // - Draw the demand/support line on that price
+    rsiOSRegionExitBarIndex := bar_index
+    minRsi = array.min(rsiOSRsiValues)
+    minRsiIndex = array.indexof(rsiOSRsiValues, minRsi)
+    minPrice = array.get(rsiOSLowPrices, minRsiIndex)
+    minPriceBarIndex = array.get(OSRegionBarIndices, minRsiIndex)
+    supportLine = line.new(minPriceBarIndex, minPrice, minPriceBarIndex+defaultTrendlineLength, minPrice, extend=extendTrendlines ? extend.right : extend.none, color=supportLineColor, width=2, style=lineStyle)
+    // Reset action for re-entry
+    rsiOSRegionEntryBarIndex := na
+    rsiOSRegionExitBarIndex := na
+    array.clear(rsiOSRsiValues)
+    array.clear(rsiOSLowPrices)
+    array.clear(OSRegionBarIndices)
+
+
+
+
+//////////////////////  Overbought (OB) region handling
+var float[] rsiOBRsiValues = array.new_float(0)
+var float[] rsiOBHighPrices = array.new_float(0)
+var int[] OBRegionBarIndices = array.new_int(0)
+var int rsiOBRegionEntryBarIndex = na
+var int rsiOBRegionExitBarIndex = na
+
+if ((ta.crossover(rsi, rsiOBLimit) or rsi > rsiOBLimit) and barstate.isconfirmed)
+    // Is inside the RSI OB region, keep on recording the RSI value and price on the respective arrays
+    rsiOBRegionEntryBarIndex := bar_index
+    array.push(rsiOBRsiValues, rsi)
+    array.push(rsiOBHighPrices, high)
+    array.push(OBRegionBarIndices, bar_index)
+
+if (ta.crossunder(rsi, rsiOBLimit) and (not na(rsiOBRegionEntryBarIndex)) and barstate.isconfirmed)
+    // Now RSI comes down from the OB region. So it's good time to do the calculation. Which calculation?
+    // - Find out the highest RSI value from the RSI array
+    // - Get the corresponding high price from the price array
+    // - Get the corresponding bar_index from bar_index array
+    // - Draw the demand/support line on that price
+    rsiOBRegionExitBarIndex := bar_index
+    maxRsi = array.max(rsiOBRsiValues)
+    maxRsiIndex = array.indexof(rsiOBRsiValues, maxRsi)
+    maxPrice = array.get(rsiOBHighPrices, maxRsiIndex)
+    maxPriceBarIndex = array.get(OBRegionBarIndices, maxRsiIndex)
+    resistanceLine = line.new(maxPriceBarIndex, maxPrice, maxPriceBarIndex+defaultTrendlineLength, maxPrice, extend=extendTrendlines ? extend.right : extend.none, color=resistanceLineColor, width=2, style=line.style_solid)
+    // Reset action for re-entry
+    rsiOBRegionEntryBarIndex := na
+    rsiOBRegionExitBarIndex := na
+    array.clear(rsiOBRsiValues)
+    array.clear(rsiOBHighPrices)
+    array.clear(OBRegionBarIndices)
+
