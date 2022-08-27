@@ -47,6 +47,8 @@ Enjoy.
 4. indicator_bb_dc_rsi_ssma_ema.ps: This is an indicator combining Bollinger Band, Donchian Channel, RSI, simple-smoothen moving average and exponential moving average. It has all you need .. you can just control which all suits your taste (e.g. Donchian with EMA or Bollinger Band with RSI).
 5. RSI_based_support_resistance: This indicator tracks when the stock is overbought (RSI > 70) or oversold (RSI < 30), picks up the highest/lowest points of the OB/OS regions and draw resistance/support (or supply/demand) lines respectively.
 6. Price_Action_in_Action:  This indicator, also in PineScript-v5 (not all warnings are cleaned up), has the various RSI based support/resistance, demand-supply and candlestick patterns (1-candle, 2-candles, 3-candles, everything) integrated into a single indicator.
+7. Strategy_CMEMA_BraidFilter_ADXDI_combined: This script describes a strategy devised and shared by "Trade Domination" in his youtube channel on 08/22/2022. Video name: "I Found The Best 1 Minute Scalping Strategy That Will Change Your Life!". Link: https://www.youtube.com/watch?v=jGHXDDwjj8I. Link of the channel: https://www.youtube.com/c/TradeDomination. The strategy code is culminated by TradingView user @pradipandsuvra (Pradip-And-Suvra), amalgamating all the Indicators used (after converting everything in PineScript v5, originally Indicators are in v4). Indicators combined : 1. CM EMA Trend Bars by ChrisMoody, 2. Braid Filter by Mango2Juice (Robert Hill), 3. ADX and DI by BeikabuOyaji
+
 
 
 
