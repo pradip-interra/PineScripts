@@ -1,0 +1,239 @@
+//@version=5
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// This script describes a strategy devised and shared by "Trade Domination" in his youtube channel on 08/22/2022. Video name: 
+// "I Found The Best 1 Minute Scalping Strategy That Will Change Your Life!"
+// Link: https://www.youtube.com/watch?v=jGHXDDwjj8I
+// Link of the channel: https://www.youtube.com/c/TradeDomination
+// The strategy code is culminated by TradingView user @pradipandsuvra (Pradip-And-Suvra), amalgamating all the Indicators used (after converting everything in PineScript v5, originally Indicators are in v4).
+// Indicators combined
+// 1. CM EMA Trend Bars by ChrisMoody
+// 2. Braid Filter by Mango2Juice (Robert Hill)
+// 3. ADX and DI by BeikabuOyaji
+//
+// Note: This is a Open Source code. Please feel free to use/reuse/distribute. It comes without any warranty or without any promise that the script remains to be same forever. Only change is constant in life :)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+strategy(title='Strategy: CMEMA + BraidFilter + ADXDI combined', shorttitle='CMEMA+BraidFilter+ADXDI', overlay=true, currency=currency.NONE, initial_capital=1000)
+
+// Input section
+ema1 = input.int(defval=34, minval=1, maxval=300, title='EMA UpTrend', group="CM EMA Trend Bars Settings")
+shema = input.bool(defval=true, title='Show EMA Trend is Based On?', group="CM EMA Trend Bars Settings")
+
+maType = input.string('EMA', 'MA Type', options=['EMA', 'DEMA', 'TEMA', 'WMA', 'VWMA', 'SMA', 'SMMA', 'HMA', 'LSMA', 'Kijun', 'McGinley', 'RMA'], group="Braid Filter Settings")
+Period1 = input.int(defval=3, title='Period 1', group="Braid Filter Settings")
+Period2 = input.int(defval=7, title='Period 2', group="Braid Filter Settings")
+Period3 = input.int(defval=14, title='Period 3', group="Braid Filter Settings")
+PipsMinSepPercent = input.int(defval=40, title="Minimum Pips Percentage for the ATR range calculation" , group="Braid Filter Settings")
+
+len = input.int(defval=14, title="ADX DI Period", group="ADX DI Settings")
+th = input.int(defval=20, title="ADX DI Threshold", group="ADX DI Settings")
+
+slAtrLen = input.int(defval=14, title="ATR Period for placing SL", group="StopLoss settings")
+
+ignoreCMEMAColor = input.bool(defval=false, title="Ignore the color of CM EMA", tooltip="Ignore if the color of CM-EMA is green or red.", group="Toggle Settings")
+ignoreBraidFilterBarAboveAvgline = input.bool(defval=false, title="Ignore BraidFilter bar size", tooltip="Ignore if the Braid Filter bar size is more than the average line.", group="Toggle Settings")
+ignoreADXDISlope = input.bool(defval=false, title="Ignore ADX DI line slope", tooltip="Ignore the slope (upward/downward) of the ADX DI line.", group="Toggle Settings")
+showSLLines = input.bool(defval=false, title="Show SL lines in chart", tooltip="Show SL lines also as dotted lines in chart. Note: chart may look untidy.", group="Toggle Settings")
+
+// Trade related
+rrRatio = input.float(title='Risk:Reward', step=0.1, defval=1.5, group="Trade settings")
+endOfDay = input.int(defval=1500, title="Close all trades, default is 3:00 PM, 1500 hours (integer)", group="Trade settings")
+mktAlwaysOn = input.bool(defval=false, title="Markets that never closed (Crypto, Forex, Commodity)", tooltip="Some markers never closes. For those cases, make this checked.")
+lotSize = input.int(title='Lot Size', step=1, defval=1, group="Trade settings")
+
+// Input section Ends
+
+
+//////////////////// Indicator-1: CM EMA Trand Bars by ChrisMoody //////////////////////////////////////////////////////////////////////////////////////
+//Created by ChrisMoody on 11/1/2014
+//Bar Color Based on Above/Below EMA...
+
+usedEma = ta.ema(close, ema1)
+
+emaUpColor() =>
+    hlc3 >= usedEma
+emaDownColor() =>
+    hlc3 < usedEma
+
+col = hlc3 >= usedEma ? color.lime : hlc3 < usedEma ? color.red : color.white
+
+barcolor(emaUpColor() ? color.lime : emaDownColor() ? color.red : na)
+plot(shema and usedEma ? usedEma : na, title='EMA', style=plot.style_line, linewidth=3, color=col)
+
+
+
+
+//////////////////// Indicator-2: Braid Filter by Mango2Juice (Robert Hill) //////////////////////////////////////////////////////////////////////////////////////
+// Copyright © Robert Hill, 2006
+
+//-- Moving Average
+ma(type, src, len) =>
+    float result = 0
+    float smaval = ta.sma(src, len)
+    float emaval = ta.ema(src, len)
+    if type == 'SMA'  // Simple
+        result := smaval
+        result
+    if type == 'EMA'  // Exponential
+        result := emaval
+        result
+    if type == 'DEMA'  // Double Exponential
+        e = emaval
+        result := 2 * e - emaval
+        result
+    if type == 'TEMA'  // Triple Exponential
+        e = emaval
+        result := 3 * (e - ta.ema(e, len)) + ta.ema(ta.ema(e, len), len)
+        result
+    if type == 'WMA'  // Weighted
+        result := ta.wma(src, len)
+        result
+    if type == 'VWMA'  // Volume Weighted
+        result := ta.vwma(src, len)
+        result
+    if type == 'SMMA'  // Smoothed
+        w = ta.wma(src, len)
+        result := na(w[1]) ? smaval : (w[1] * (len - 1) + src) / len
+        result
+    if type == 'RMA'
+        result := ta.rma(src, len)
+        result
+    if type == 'HMA'  // Hull
+        result := ta.wma(2 * ta.wma(src, len / 2) - ta.wma(src, len), math.round(math.sqrt(len)))
+        result
+    if type == 'LSMA'  // Least Squares
+        result := ta.linreg(src, len, 0)
+        result
+    if type == 'Kijun'  //Kijun-sen
+        kijun = math.avg(ta.lowest(len), ta.highest(len))
+        result := kijun
+        result
+    if type == 'McGinley'
+        mg = 0.0
+        mg := na(mg[1]) ? emaval : mg[1] + (src - mg[1]) / (len * math.pow(src / mg[1], 4))
+        result := mg
+        result
+    result
+
+//-- Braid Filter   
+ma01 = ma(maType, close, Period1)
+ma02 = ma(maType, open, Period2)
+ma03 = ma(maType, close, Period3)
+
+max = math.max(math.max(ma01, ma02), ma03)
+min = math.min(math.min(ma01, ma02), ma03)
+dif = max - min
+
+filter = ta.atr(14) * PipsMinSepPercent / 100
+
+//-- Plots
+// BraidColor = ma01 > ma02 and dif > filter ? color.new(color.green, 90) : ma02 > ma01 and dif > filter ? color.new(color.red, 90) : color.new(color.gray, 90)
+// plot(dif, 'Braid', BraidColor, 5, plot.style_columns)
+// plot(filter, 'Filter', color.new(color.blue, 0), 2, plot.style_line)
+// bgcolor(BraidColor, title="Braid Backgroup")
+
+
+
+//////////////////// Indicator-3: ADX and DI by BeikabuOyaji //////////////////////////////////////////////////////////////////////////////////////
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © BeikabuOyaji
+
+TrueRange = math.max(math.max(high - low, math.abs(high - nz(close[1]))), math.abs(low - nz(close[1])))
+DirectionalMovementPlus = high - nz(high[1]) > nz(low[1]) - low ? math.max(high - nz(high[1]), 0) : 0
+DirectionalMovementMinus = nz(low[1]) - low > high - nz(high[1]) ? math.max(nz(low[1]) - low, 0) : 0
+
+SmoothedTrueRange = 0.0
+SmoothedTrueRange := nz(SmoothedTrueRange[1]) - nz(SmoothedTrueRange[1]) / len + TrueRange
+
+SmoothedDirectionalMovementPlus = 0.0
+SmoothedDirectionalMovementPlus := nz(SmoothedDirectionalMovementPlus[1]) - nz(SmoothedDirectionalMovementPlus[1]) / len + DirectionalMovementPlus
+
+SmoothedDirectionalMovementMinus = 0.0
+SmoothedDirectionalMovementMinus := nz(SmoothedDirectionalMovementMinus[1]) - nz(SmoothedDirectionalMovementMinus[1]) / len + DirectionalMovementMinus
+
+DIPlus = SmoothedDirectionalMovementPlus / SmoothedTrueRange * 100
+DIMinus = SmoothedDirectionalMovementMinus / SmoothedTrueRange * 100
+DX = math.abs(DIPlus - DIMinus) / (DIPlus + DIMinus) * 100
+ADX = ta.sma(DX, len)
+
+// plot(DIPlus, color=color.new(color.green, 0), title='DI+')
+// plot(DIMinus, color=color.new(color.red, 0), title='DI-')
+// plot(ADX, color=color.new(color.navy, 0), title='ADX')
+// hline(th, color=color.black)
+
+
+///////////////////////////////////////////////
+
+
+/// Now comes the actual Trading Portion /////////////////////////////////////
+
+// Conditions for CM_EMA
+bool cmemaLongCond = (close > usedEma) and (ignoreCMEMAColor ? true : hlc3 >= usedEma)  // price closed above EMA and color is green
+bool cmemaShortCond = (close < usedEma) and (ignoreCMEMAColor ? true : hlc3 < usedEma)  // price closed below EMA and color is red
+
+// Conditions for Braid Filter
+bool prevBFCandleGreen = (ma01[1] > ma02[1]) and (ignoreBraidFilterBarAboveAvgline ? true : dif[1] > filter[1])
+bool prevBFCandleRed = (ma02[1] > ma01[1]) and (ignoreBraidFilterBarAboveAvgline ? true : dif[1] > filter[1])
+bool prevBFCandleGrey = (ma01[1] == ma02[1]) and (ignoreBraidFilterBarAboveAvgline ? true : dif[1] <= filter[1])
+bool currBFCandleGreen = (ma01 > ma02) and (ignoreBraidFilterBarAboveAvgline ? true : dif > filter)
+bool curBFCandleRed = (ma02 > ma01) and (ignoreBraidFilterBarAboveAvgline ? true : dif > filter)
+bool curBFCandleGrey = (ma01 == ma02) and (ignoreBraidFilterBarAboveAvgline ? true : dif <= filter)
+bool braidLongCond = ((prevBFCandleRed or prevBFCandleGrey) and currBFCandleGreen) // Transition from Red/Grey to Green
+bool braidShortCond = (prevBFCandleGreen or prevBFCandleGrey) and curBFCandleRed  // Transition from Green/Grey to Red
+
+
+// Conditions for ADX_DI
+isInUpDirection (parameter) => 
+    // To determine the slope, we are just getting y2-y1/t2-t1, where the spread we took as 5. Means if the 5th last price is less than current price, then slope +ve and vice versa.
+    (parameter / parameter[5] > 1.0) ? true : false
+
+bool adxdiUnifiedCond = (ADX > th) and (isInUpDirection(ADX))  // for ADX-DI, condition is: ADX line should be higher than the 20 (threshold blackline) and the ADX direction upwards .. same for long & short.
+
+
+// Final aggregated conditins, only placed after the completion of bar (as close is a dynamic stuff)
+bool longCond = barstate.isconfirmed and cmemaLongCond and braidLongCond and adxdiUnifiedCond
+bool shortCond = barstate.isconfirmed and cmemaShortCond and braidShortCond and adxdiUnifiedCond
+
+// Plotting the Buy Sell in the chart
+plotshape(longCond, title='Buy', text='Buy', location=location.belowbar, style=shape.labelup, size=size.tiny, color=color.green, textcolor=color.new(color.white, 0))
+plotshape(shortCond, title='Sell', text='Sell', location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, textcolor=color.new(color.white, 0))
+
+
+// For SL calculation
+atr = ta.atr(slAtrLen)
+highestHigh = ta.highest(high, 7)
+lowestLow = ta.lowest(low, 7)
+longStop = showSLLines ? lowestLow - (atr * 1) : na
+shortStop = showSLLines ? highestHigh + (atr * 1) : na
+plot(longStop, title="Buy SL", color=color.green, style=plot.style_cross)
+plot(shortStop, title="Sell SL", color=color.red, style=plot.style_cross)
+
+// Trade execute
+h = hour(time('1'), syminfo.timezone)
+m = minute(time('1'), syminfo.timezone)
+hourVal = h * 100 + m
+if (mktAlwaysOn or (hourVal < endOfDay))
+    // Entry
+    var float sl = na
+    var float target = na
+    if (longCond)
+        strategy.entry("enter long", strategy.long, lotSize, limit=na, stop=na, comment="Enter Long")
+        sl := longStop
+        target := close + ((close - longStop) * rrRatio)
+        alert('Buy:' + syminfo.ticker + ' ,SL:' + str.tostring(math.floor(sl)) + ', Target:' + str.tostring(target), alert.freq_once_per_bar)
+    if (shortCond)
+        strategy.entry("enter short", strategy.short, lotSize, limit=na, stop=na, comment="Enter Short")
+        sl := shortStop
+        target := close - ((shortStop - close) * rrRatio)
+        alert('Sell:' + syminfo.ticker + ' ,SL:' + str.tostring(math.floor(sl)) + ', Target:' + str.tostring(target), alert.freq_once_per_bar)
+
+    // Exit: target or SL
+    if ((close >= target) or (close <= sl))
+        strategy.close("enter long", comment=close < sl ? "Long SL hit" : "Long target hit")
+    if ((close <= target) or (close >= sl))
+        strategy.close("enter short", comment=close > sl ? "Short SL hit" : "Short target hit")
+else if (not mktAlwaysOn)
+    // Close all open position at the end if Day
+    strategy.close_all(comment = "Close all entries at end of day.")
