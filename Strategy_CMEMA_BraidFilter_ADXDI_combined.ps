@@ -174,20 +174,23 @@ bool cmemaLongCond = (close > usedEma) and (ignoreCMEMAColor ? true : hlc3 >= us
 bool cmemaShortCond = (close < usedEma) and (ignoreCMEMAColor ? true : hlc3 < usedEma)  // price closed below EMA and color is red
 
 // Conditions for Braid Filter
+// BraidColor = ma01 > ma02 and dif > filter ? color.new(color.green, 90) : ma02 > ma01 and dif > filter ? color.new(color.red, 90) : color.new(color.gray, 90)
+// plot(dif, 'Braid', BraidColor, 5, plot.style_columns)
+
 bool prevBFCandleGreen = (ma01[1] > ma02[1]) and (ignoreBraidFilterBarAboveAvgline ? true : dif[1] > filter[1])
 bool prevBFCandleRed = (ma02[1] > ma01[1]) and (ignoreBraidFilterBarAboveAvgline ? true : dif[1] > filter[1])
 bool prevBFCandleGrey = (ma01[1] == ma02[1]) and (ignoreBraidFilterBarAboveAvgline ? true : dif[1] <= filter[1])
 bool currBFCandleGreen = (ma01 > ma02) and (ignoreBraidFilterBarAboveAvgline ? true : dif > filter)
-bool curBFCandleRed = (ma02 > ma01) and (ignoreBraidFilterBarAboveAvgline ? true : dif > filter)
-bool curBFCandleGrey = (ma01 == ma02) and (ignoreBraidFilterBarAboveAvgline ? true : dif <= filter)
+bool currBFCandleRed = (ma02 > ma01) and (ignoreBraidFilterBarAboveAvgline ? true : dif > filter)
+bool currBFCandleGrey = (ma01 == ma02) and (ignoreBraidFilterBarAboveAvgline ? true : dif <= filter)
 bool braidLongCond = ((prevBFCandleRed or prevBFCandleGrey) and currBFCandleGreen) // Transition from Red/Grey to Green
-bool braidShortCond = (prevBFCandleGreen or prevBFCandleGrey) and curBFCandleRed  // Transition from Green/Grey to Red
-
+bool braidShortCond = (prevBFCandleGreen or prevBFCandleGrey) and currBFCandleRed  // Transition from Green/Grey to Red
+// label1 =  label.new(bar_index, high, str.tostring(bar_index))
 
 // Conditions for ADX_DI
 isInUpDirection (parameter) => 
-    // To determine the slope, we are just getting y2-y1/t2-t1, where the spread we took as 5. Means if the 5th last price is less than current price, then slope +ve and vice versa.
-    (parameter / parameter[5] > 1.0) ? true : false
+    // To determine the slope, we are just getting y2-y1/t2-t1, where the spread we took as 10 (arbitrary). Means if the 5th last price is less than current price, then slope +ve and vice versa.
+    (parameter / parameter[10] > 1.0) ? true : false
 
 bool adxdiUnifiedCond = (ADX > th) and (isInUpDirection(ADX))  // for ADX-DI, condition is: ADX line should be higher than the 20 (threshold blackline) and the ADX direction upwards .. same for long & short.
 
