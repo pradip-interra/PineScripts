@@ -2,24 +2,25 @@
 indicator(title="Price Action in action", shorttitle="Price-Action", format=format.price, precision=2, overlay=true)
 
 // RSI based support-resistance inputs
-show1 = input.bool(defval=true, title="Level-1 Support/Resistance Line", group="Levels")
-show2 = input.bool(defval=true, title="Level-2 Support/Resistance Line", group="Levels")
-show3 = input.bool(defval=true, title="Level-3 Support/Resistance Line", group="Levels")
-show4 = input.bool(defval=true, title="Level-4 Support/Resistance Line", group="Levels")
-showStrengh = input.bool(defval=true, title="Strength of Support/Resistance", group="Levels", tooltip="If a particular Support/Resistance line is revisited by multiple RSI levels, prints the count.")
+show1 = input.bool(defval=true, title="Level-1 Support/Resistance Line", group="Levels", tooltip="Opt-in/opt-out for the level-1 RSI.")
+show2 = input.bool(defval=true, title="Level-2 Support/Resistance Line", group="Levels", tooltip="Opt-in/opt-out for the level-2 RSI.")
+show3 = input.bool(defval=true, title="Level-3 Support/Resistance Line", group="Levels", tooltip="Opt-in/opt-out for the level-3 RSI.")
+show4 = input.bool(defval=true, title="Level-4 Support/Resistance Line", group="Levels", tooltip="Opt-in/opt-out for the level-1 RSI.")
+showStrengh = input.bool(defval=true, title="Strength of Support/Resistance", group="Levels", tooltip="Opt-in/opt-out the indication of: whether a particular Support/Resistance line is revisited by multiple RSI levels, prints the count.")
 
-rsiLen1 = input.int(defval=7, minval=1, title="RSI Level-1 Length", group="RSI Settings")
-rsiLen2 = input.int(defval=14, minval=1, title="RSI Level-2 Length", group="RSI Settings")
-rsiLen3 = input.int(defval=21, minval=1, title="RSI Level-3 Length", group="RSI Settings")
-rsiLen4 = input.int(defval=28, minval=1, title="RSI Level-4 Length", group="RSI Settings")
+rsiLen1 = input.int(defval=7, minval=1, title="RSI Level-1 Length", group="RSI Settings", tooltip="First, lowest level of the Relative Strength Index (RSI) period. Default:7.")
+rsiLen2 = input.int(defval=14, minval=1, title="RSI Level-2 Length", group="RSI Settings", tooltip="Second level of the Relative Strength Index (RSI) period. Default: 14.")
+rsiLen3 = input.int(defval=21, minval=1, title="RSI Level-3 Length", group="RSI Settings", tooltip="Second level of the Relative Strength Index (RSI) period. Default: 14.")
+rsiLen4 = input.int(defval=28, minval=1, title="RSI Level-4 Length", group="RSI Settings", tooltip="Second level of the Relative Strength Index (RSI) period. Default: 14.")
 
-rsiOBLimit = input.float(defval=70.0, minval=1.0, title="Overbought threshold", group="RSI Settings")
-rsiOSLimit = input.float(defval=30.0, minval=1.0, title="Oversold threshold", group="RSI Settings")
-extendTrendlines = input.bool(defval=false, title="Extend support/resistance lines to right", group="Trendline")
-defaultTrendlineLength = input.int(defval=20, minval=1, title="Defauft support/resistance lines length", group="Trendline")
-supportLineColor = input.color(defval=color.green, title="Support Line color", group="Trendline")
-lineStyleOption = input.string(defval="solid (─)", title="Support/Resistance Lines Style", options=["solid (─)", "dotted (┈)", "dashed (╌)"])
-resistanceLineColor = input.color(defval=color.red, title="Resistance Line color", group="Trendline")
+rsiOBLimit = input.float(defval=70.0, minval=1.0, title="Overbought threshold", group="RSI Settings", tooltip="Above which value of RSI we can infer the market is overbought (too much runup happened already).")
+rsiOSLimit = input.float(defval=30.0, minval=1.0, title="Oversold threshold", group="RSI Settings", tooltip="Above which value of RSI we can infer the market is oversold (too much selloff happened already).")
+extendTrendlines = input.bool(defval=false, title="Extend support/resistance lines to right", group="Trendline", tooltip="Extending the trendlines to right. Note: this will clutter the chart. Use it judiciously.")
+defaultTrendlineLength = input.int(defval=20, minval=1, title="Defauft support/resistance lines length", group="Trendline", tooltip="How lengthy the trendlines will be, in case you did not choose Extend support/resistance lines to right flag above.")
+supportLineColor = input.color(defval=color.green, title="Support Line color", group="Trendline", tooltip="The color of support line. Default is green.")
+resistanceLineColor = input.color(defval=color.red, title="Resistance Line color", group="Trendline", tooltip="The color of resistance line. Default is red.")
+lineStyleOption = input.string(defval="solid (─)", title="Support/Resistance Lines Style", options=["solid (─)", "dotted (┈)", "dashed (╌)"], tooltip="The style of support/resistance lines: solid, dashed, dotted. Default: solid.")
+
 
 // Candlestick Inputs
 OnBarClosing = input.bool(defval=true, title="Candlestick pattern detection only after bar closing", tooltip="The candlestick will be drawn only after barstate.isconfirmed. Default: True")
@@ -36,7 +37,7 @@ TweezerGap = input.int(defval=10, step=1, minval=0, title="Tweezer Gap (in point
 
 // Volume Average
 showVolume = input.bool(defval=true, title="Volume Information", group="Volumes", tooltip="Whether to include the volume information also in the chart.")
-volAvgLen = input.int(defval=20, minval=1, title="Volume Average Period", group="Volumes")
+volAvgLen = input.int(defval=20, minval=1, title="Volume Average Period", group="Volumes", tooltip="The period of calculating Volume Weighted Moving Average (VWMA). Default: 20.")
 volThresholdMultiplier = input.float(defval=1.0, minval=1.0, maxval=5.0, step=0.1, title="Current Volume : Average Volume Ratio", group="Volumes", tooltip="How many times the current volume should be higher than the avg volume to be flagged.")
 
 
@@ -320,4 +321,4 @@ if (es_cond and barstate.isconfirmed)
 // Volume-Weighed Moving Average calculation
 vwmaAvg = ta.vwma(close, volAvgLen)
 vwma_latest = ta.vwma(close, 1)
-plotshape((showVolume and (vwma_latest > (vwmaAvg * volThresholdMultiplier))), title='VolumeData', text='', location=location.abovebar, style=shape.diamond, color=color.gray, textcolor=color.gray, size=size.tiny)
+plotshape((showVolume and barstate.isconfirmed and (vwma_latest > (vwmaAvg * volThresholdMultiplier))), title='VolumeData', text='', location=location.abovebar, style=shape.diamond, color=color.gray, textcolor=color.gray, size=size.tiny)
