@@ -1,0 +1,69 @@
+//@version=5
+// Open-High-Low strategy
+
+strategy('Strategy: OLH', shorttitle="OLH", overlay=true , currency=currency.NONE, initial_capital=100000)
+
+// Inputs
+slAtrLen = input.int(defval=14, title="ATR Period for placing SL", group="StopLoss settings")
+showSLLines = input.bool(defval=false, title="Show SL lines in chart", tooltip="Show SL lines also as dotted lines in chart. Note: chart may look untidy.", group="Stolploss settings")
+// Trade related
+rrRatio = input.float(title='Risk:Reward', step=0.1, defval=2.0, group="Trade settings")
+endOfDay = input.int(defval=1500, title="Close all trades, default is 3:00 PM, 1500 hours (integer)", group="Trade settings")
+mktAlwaysOn = input.bool(defval=true, title="Markets that never closed (Crypto, Forex, Commodity)", tooltip="Some markers never closes. For those cases, make this checked.", group="Trade settings")
+lotSize = input.int(title='Lot Size', step=1, defval=1, group="Trade settings")
+
+
+// Utils
+green(open, close) => close > open ? true : false
+red(open, close) => close < open ? true : false
+body(open, close) => math.abs(open - close)
+lowerwick = green(open, close) ? open - low : close - low
+upperwick = green(open, close) ? high - close : high - open
+crange = high - low
+crangep = high[1] - low[1] // previous candle's candle-range
+bullish = close > open ? true : false
+bearish = close < open ? true : false
+
+
+// Trade signals
+longCond = barstate.isconfirmed and (open == low)
+shortCond = barstate.isconfirmed and (open == high)
+
+// For SL calculation
+atr = ta.atr(slAtrLen)
+highestHigh = ta.highest(high, 7)
+lowestLow = ta.lowest(low, 7)
+longStop = showSLLines ? lowestLow - (atr * 1) : na
+shortStop = showSLLines ? highestHigh + (atr * 1) : na
+plot(longStop, title="Buy SL", color=color.green, style=plot.style_cross)
+plot(shortStop, title="Sell SL", color=color.red, style=plot.style_cross)
+
+// Trade execute
+h = hour(time('1'), syminfo.timezone)
+m = minute(time('1'), syminfo.timezone)
+hourVal = h * 100 + m
+totalTrades = strategy.opentrades + strategy.closedtrades
+if (mktAlwaysOn or (hourVal < endOfDay))
+    // Entry
+    var float sl = na
+    var float target = na
+    if (longCond)
+        strategy.entry("enter long", strategy.long, lotSize, limit=na, stop=na, comment="Enter Long")
+        sl := longStop
+        target := close + ((close - longStop) * rrRatio)
+        alert('Buy:' + syminfo.ticker + ' ,SL:' + str.tostring(math.floor(sl)) + ', Target:' + str.tostring(target), alert.freq_once_per_bar)
+    if (shortCond)
+        strategy.entry("enter short", strategy.short, lotSize, limit=na, stop=na, comment="Enter Short")
+        sl := shortStop
+        target := close - ((shortStop - close) * rrRatio)
+        alert('Sell:' + syminfo.ticker + ' ,SL:' + str.tostring(math.floor(sl)) + ', Target:' + str.tostring(target), alert.freq_once_per_bar)
+
+    // Exit: target or SL
+    if ((close >= target) or (close <= sl))
+        strategy.close("enter long", comment=close < sl ? "Long SL hit" : "Long target hit")
+    if ((close <= target) or (close >= sl))
+        strategy.close("enter short", comment=close > sl ? "Short SL hit" : "Short target hit")
+else if (not mktAlwaysOn)
+    // Close all open position at the end if Day
+    strategy.close_all(comment = "Close all entries at end of day.")
+
