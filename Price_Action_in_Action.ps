@@ -2,6 +2,8 @@
 indicator(title="Price Action in action", shorttitle="Price-Action", format=format.price, precision=2, overlay=true)
 
 // RSI based support-resistance inputs
+dontShowRsi = input.bool(defval=false, title="Don't show SRI", tooltip="This option to turn off the RSI. Default: False.")
+
 show1 = input.bool(defval=true, title="Level-1 Support/Resistance Line", group="Levels", tooltip="Opt-in/opt-out for the level-1 RSI.")
 show2 = input.bool(defval=true, title="Level-2 Support/Resistance Line", group="Levels", tooltip="Opt-in/opt-out for the level-2 RSI.")
 show3 = input.bool(defval=true, title="Level-3 Support/Resistance Line", group="Levels", tooltip="Opt-in/opt-out for the level-3 RSI.")
@@ -23,6 +25,8 @@ lineStyleOption = input.string(defval="solid (─)", title="Support/Resistance L
 
 
 // Candlestick Inputs
+dontShowCandle = input.bool(defval=false, title="Don't show candlestick patterns", tooltip="This option to turn off the candlestick pattern. Default: False.")
+
 OnBarClosing = input.bool(defval=true, title="Candlestick pattern detection only after bar closing", tooltip="The candlestick will be drawn only after barstate.isconfirmed. Default: True")
 DojiSize = input.float(defval=0.1, minval=0.01, step=0.01, maxval=1.0, title="Doji size", tooltip="How thin the body will be compared to the whole candle high-low. Default is 10%.")
 DojiGravestoneDragonFlySize = input.float(defval=0.2, minval=0.01, step=0.01, maxval=1.0, title="GraveStone/Dragonfly size", tooltip="How close the Doji is to the high (Dragonfly) or low (Gravestone) of the candle, default 20%.")
@@ -146,14 +150,15 @@ calculateRSISupportResistance(lenght, trans) =>
 
 
 /// Now calling RSI calculator 4 fimes for each RSI lennghts
-if (show1)
-    calculateRSISupportResistance(rsiLen1, 0)
-if (show2)
-    calculateRSISupportResistance(rsiLen2, 20)
-if (show3)
-    calculateRSISupportResistance(rsiLen3, 40)
-if (show4)
-    calculateRSISupportResistance(rsiLen4, 60)
+if (not dontShowRsi)
+    if (show1)
+        calculateRSISupportResistance(rsiLen1, 0)
+    if (show2)
+        calculateRSISupportResistance(rsiLen2, 20)
+    if (show3)
+        calculateRSISupportResistance(rsiLen3, 40)
+    if (show4)
+        calculateRSISupportResistance(rsiLen4, 60)
 
 // Calculate the strength of support/resistance
 if (showStrengh)
@@ -178,29 +183,30 @@ crangep = high[1] - low[1] // previous candle's candle-range
 bullish = close > open ? true : false
 bearish = close < open ? true : false
 oc = OnBarClosing ? barstate.isconfirmed : true
+c = not dontShowCandle
 // Single Candle Patterns ///////////////////////////////////////////////////////////////////////////////////////
 // Doji Logic
 doji(open, close, high, low) => body(open, close) <= crange * DojiSize
 gravestone(o, c, h, l) => doji(o, c, h, l) and lowerwick / crange <= DojiGravestoneDragonFlySize
 dragonfly(o, c, h, l) => doji(o, c, h, l) and upperwick / crange <= DojiGravestoneDragonFlySize
 normaldoji(o, c, h, l) => doji(o, c, h, l) and (not gravestone(o, c, h, l)) and (not dragonfly(o, c, h, l))
-plotchar(oc and normaldoji(open, close, high, low), title='Normal Doji', text='Doji', color=color.gray, display=display.none)
-plotchar(oc and gravestone(open, close, high, low), title='GraveStone Doji', text='GS\nDoji', color=color.gray, display=display.none)
-plotchar(oc and dragonfly(open, close, high, low), title='DragonFly Doji', text='DF\nDoji', color=color.gray, display=display.none)
+plotchar(c and oc and normaldoji(open, close, high, low), title='Normal Doji', text='Doji', color=color.gray, display=display.none)
+plotchar(c and oc and gravestone(open, close, high, low), title='GraveStone Doji', text='GS\nDoji', color=color.gray, display=display.none)
+plotchar(c and oc and dragonfly(open, close, high, low), title='DragonFly Doji', text='DF\nDoji', color=color.gray, display=display.none)
 
 // Marubozo Logic
 marubozo(o, c, h, l) => body(o, c) / crange >= MarubozoSize
-plotshape(oc and marubozo(open, close, high, low), title='Marubozo', text='Marubozo', location=location.abovebar, style=shape.triangledown, color=color.blue)
+plotshape(c and oc and marubozo(open, close, high, low), title='Marubozo', text='Marubozo', location=location.abovebar, style=shape.triangledown, color=color.blue)
 
 // Hammer & Inverted Hammer (Pinbar)
 hammer(o, c, h, l, inverted = false) => (not doji(o,c,h,l)) and (body(o, c) <= crange * HammerBodySize) and ((inverted ? lowerwick : upperwick) / crange <= HammerBodyPlacement)
-plotshape(oc and hammer(open, close, high, low), title='Hammer', text='Hammer', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
-plotshape(oc and hammer(open, close, high, low, true), title='I-Hammer\n/Pinbar', text='I-Hammer\n/Pinbar', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
+plotshape(c and oc and hammer(open, close, high, low), title='Hammer', text='Hammer', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
+plotshape(c and oc and hammer(open, close, high, low, true), title='I-Hammer\n/Pinbar', text='I-Hammer\n/Pinbar', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
 
 // Spinning Top
 wickratio = upperwick < lowerwick ? upperwick / lowerwick : lowerwick / upperwick
 spinner(o, c, h, l) => (not doji(o,c,h,l)) and (crange / body(o, c) >= SpinningTopRangeToBodyRatio) and (wickratio >= 0.9)
-plotshape(oc and spinner(open, close, high, low), title='Spinner', text='Spinner', location=location.belowbar, style=shape.cross, color=color.maroon, textcolor=color.maroon)
+plotshape(c and oc and spinner(open, close, high, low), title='Spinner', text='Spinner', location=location.belowbar, style=shape.cross, color=color.maroon, textcolor=color.maroon)
 
 
 // Two Candles Patterns ///////////////////////////////////////////////////////////////////////////////////////
@@ -213,7 +219,7 @@ bullish_engulfing(op, cp, hp, lp, o, c, h, l) => red(op, cp) and green(o, c) and
 bearish_engulfing(op, cp, hp, lp, o, c, h, l) => green(op, cp) and red(o, c) and (StrictEngulf ? (o > hp and c < lp) : (h > hp and l < lp))
 bullish_engulf_data = bullish_engulfing(open[1], close[1], high[1], low[1], open, close, high, low)
 bearish_engulf_data = bearish_engulfing(open[1], close[1], high[1], low[1], open, close, high, low)
-plotshape(oc and bullish_engulf_data, title='Bull-Engulf', text='Bull-Engulf', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+plotshape(c and oc and bullish_engulf_data, title='Bull-Engulf', text='Bull-Engulf', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
 if (bullish_engulf_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
 plotshape(bearish_engulf_data, title='Bear-Engulf', text='Bear-Engulf', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
@@ -230,7 +236,7 @@ if (bearish_engulf_data and barstate.isconfirmed)
 prev_candle_middle = (open[1] + close[1]) / 2
 bullish_piercing(op, cp, hp, lp, o, c, h, l) => (not doji(op,cp,hp,lp)) and (not doji(o,c,h,l)) and red(op, cp) and green(o, c) and (o <= lp and c > prev_candle_middle and c < op) //
 bullish_piering_data = bullish_piercing(open[1], close[1], high[1], low[1], open, close, high, low)
-plotshape(oc and bullish_piering_data, title='Piercing', text='Piercing', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+plotshape(c and oc and bullish_piering_data, title='Piercing', text='Piercing', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
 if (bullish_piering_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
 
@@ -242,7 +248,7 @@ if (bullish_piering_data and barstate.isconfirmed)
 // However, in a dark cloud cover, the red candle on P2 engulfs about 50 to 100% of P1’s blue candle.
 dark_cloud_cover(op, cp, hp, lp, o, c, h, l) => (not doji(op,cp,hp,lp)) and (not doji(o,c,h,l)) and green(op, cp) and red(o, c) and (o >= hp and c < prev_candle_middle and c > op)
 ddc_data = dark_cloud_cover(open[1], close[1], high[1], low[1], open, close, high, low)
-plotshape(oc and ddc_data, title='Dark Cloud Cover', text='DCC', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
+plotshape(c and oc and ddc_data, title='Dark Cloud Cover', text='DCC', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
 if (ddc_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
 
@@ -253,10 +259,10 @@ bullish_inside_candle(op, cp, hp, lp, o, c, h, l) => red(op, cp) and green(o, c)
 bearish_inside_candle(op, cp, hp, lp, o, c, h, l) => green(op, cp) and red(o, c) and (StrictInsideCandle ? (cp > h and op < l) : (hp > h and lp < l))
 bullish_inside_data = bullish_inside_candle(open[1], close[1], high[1], low[1], open, close, high, low)
 bearish_inside_data = bearish_inside_candle(open[1], close[1], high[1], low[1], open, close, high, low)
-plotshape(oc and bullish_inside_data, title='Bull-IC', text='Bull-IC', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+plotshape(c and oc and bullish_inside_data, title='Bull-IC', text='Bull-IC', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
 if (bullish_inside_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
-plotshape(oc and bearish_inside_data, title='Bear-IC', text='Bear-IC', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
+plotshape(c and oc and bearish_inside_data, title='Bear-IC', text='Bear-IC', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
 if (bearish_inside_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
 
@@ -265,13 +271,13 @@ if (bearish_inside_data and barstate.isconfirmed)
 
 bullish_kicker(op, cp, o, c) => red(op, cp) and green(o, c) and (o > (op * (1 + (KickerGap / 100))))
 bullish_kicker_data = bullish_kicker(open[1], close[1], open, close)
-plotshape(oc and bullish_kicker_data, title='Bullish Kicker', text='Bull\nKicker', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
+plotshape(c and oc and bullish_kicker_data, title='Bullish Kicker', text='Bull\nKicker', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
 if (bullish_kicker_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
 
 bearish_kicker(op, cp, o, c) => green(op, cp) and red(o, c) and (o < (op * (1 - (KickerGap / 100))))
 bearish_kicker_data = bearish_kicker(open[1], close[1], open, close)
-plotshape(oc and bearish_kicker_data, title='Bearish Kicker', text='Bear\nKicker', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
+plotshape(c and oc and bearish_kicker_data, title='Bearish Kicker', text='Bear\nKicker', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
 if (bearish_kicker_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
 
@@ -279,13 +285,13 @@ if (bearish_kicker_data and barstate.isconfirmed)
 // Tweezers Top and Bottom
 tweezer_top(op, cp, hp, lp, o, c, h, l) => (not doji(op,cp,hp,lp)) and (not doji(o,c,h,l)) and green(op, cp) and red(o, c) and (math.abs(crange-crangep) <= TweezerGap) and (math.abs(h-hp) <= TweezerGap)
 tweezer_top_data = tweezer_top(open[1], close[1], high[1], low[1], open, close, high, low)
-plotshape(oc and tweezer_top_data, title='Tweezer Top', text='Bear\nTweezer', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
+plotshape(c and oc and tweezer_top_data, title='Tweezer Top', text='Bear\nTweezer', location=location.abovebar, style=shape.arrowdown, color=color.red, textcolor=color.red)
 if (tweezer_top_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.red, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
 
 tweezer_bottom(op, cp, hp, lp, o, c, h, l) => (not doji(op,cp,hp,lp)) and (not doji(o,c,h,l)) and red(op, cp) and green(o, c) and (math.abs(crange-crangep) <= TweezerGap) and (math.abs(l-lp) <= TweezerGap)
 tweezer_bottom_data = tweezer_bottom(open[1], close[1], high[1], low[1], open, close, high, low)
-plotshape(oc and tweezer_bottom_data, title='Tweezer Bottom', text='Bull\nTweezer', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
+plotshape(c and oc and tweezer_bottom_data, title='Tweezer Bottom', text='Bull\nTweezer', location=location.belowbar, style=shape.arrowup, color=color.green, textcolor=color.green)
 if (tweezer_bottom_data and barstate.isconfirmed)
     box.new(bar_index-1, highest, bar_index, lowest, border_color=color.green, border_style=line.style_dotted, border_width=2, bgcolor=color.new(color.white, 100))
 
@@ -299,7 +305,7 @@ ms_day1 = red(open[2],close[2]) and (not doji(open[2], close[2], high[2], low[2]
 ms_day2 = (open[1] < close[2]) and (doji(open[1], close[1], high[1], low[1]) or spinner(open[1], close[1], high[1], low[1]))
 ms_day3 = (green(open[1],close[1]) ? open > close[1] : open > open[1]) and green(open, close) and (close > open[2])
 ms_cond = ms_day1 and ms_day2 and ms_day3
-plotshape(oc and ms_cond, title='Morning-Star', text='Morning-Star', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
+plotshape(c and oc and ms_cond, title='Morning-Star', text='Morning-Star', location=location.belowbar, style=shape.triangleup, color=color.green, textcolor=color.green)
 lowestp = math.min(low,low[1],low[2])
 highestp = math.max(high,high[1],high[2])
 if (ms_cond and barstate.isconfirmed)
@@ -311,11 +317,9 @@ es_day1 = green(open[2],close[2]) and (not doji(open[2], close[2], high[2], low[
 es_day2 = (open[1] > close[2]) and (doji(open[1], close[1], high[1], low[1]) or spinner(open[1], close[1], high[1], low[1]))
 es_day3 = (green(open[1],close[1]) ? open < open[1] : open < close[1]) and red(open, close) and (close < open[2])
 es_cond = es_day1 and es_day2 and es_day3
-plotshape(oc and es_cond, title='Evening-Star', text='Evening-Star', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
+plotshape(c and oc and es_cond, title='Evening-Star', text='Evening-Star', location=location.abovebar, style=shape.triangledown, color=color.red, textcolor=color.red)
 if (es_cond and barstate.isconfirmed)
     box.new(bar_index-2, highestp, bar_index, lowestp, border_color=color.red, border_style=line.style_dashed, border_width=2, bgcolor=color.new(color.white, 100))
-
-
 
 
 // Volume-Weighed Moving Average calculation
