@@ -288,44 +288,40 @@ if (checkRSI and showSLTargetLabel and avoidMultipleReportingSell)
 // Trading
 var float sl = na
 var float tgt = na
+var string id = na
 h = hour(time('1'), syminfo.timezone)
 m = minute(time('1'), syminfo.timezone)
 hourVal = h * 100 + m
+timeUTC = time_close(timeframe.period, syminfo.session, "GMT+5:30")
+currtime = str.format("[{0,date,HH:mm:ss dd.MM.yyyy}]\n", timeUTC+(330*60*1000))  // Indian Standard Time hack!
+// label.new(bar_index, low, str.tostring(currtime))
+
 if (mktAlwaysOn or (hourVal < endOfDay))
     // Entry
     var string alert_msg = na
     if (sureBuyInTrend)
-        alert_msg := 'Buy: ' + syminfo.ticker + ' , SL: ' + str.tostring(math.floor(atrLow[0])) + ', Target(RR=1:1):' + str.tostring(math.floor(buyTarget)) + '. CMP: ' + str.tostring(close)
-        strategy.entry("enter long", strategy.long, lotSize, limit=na, stop=na, comment="Enter Long", alert_message=alert_msg)
+        id := str.tostring(time("") / 100000)
+        alert_msg := currtime + 'Buy: ' + syminfo.ticker + ' , SL: ' + str.tostring(math.round(atrLow[0],2)) + ', Target(RR=1:1):' + str.tostring(math.round(buyTarget,2)) + '. CMP: ' + str.tostring(math.round(close,2))
+        strategy.entry("Long", strategy.long, lotSize, limit=na, stop=na, comment='ID: ' + id, alert_message=alert_msg)
         sl := atrLow
         tgt := buyTarget
-        // alert(alert_msg, alert.freq_once_per_bar)
     if (sureSellInTrend)
-        alert_msg := 'Sell: ' + syminfo.ticker + ' , SL: ' + str.tostring(math.floor(atrHigh[0])) + ', Target(RR=1:1): ' + str.tostring(math.floor(sellTarget)) + '. CMP: ' + str.tostring(close)
-        strategy.entry("enter short", strategy.short, lotSize, limit=na, stop=na, comment="Enter Short", alert_message=alert_msg)
+        id := str.tostring(time("") / 100000)
+        alert_msg := currtime + 'Sell: ' + syminfo.ticker + ' , SL: ' + str.tostring(math.round(atrHigh[0],2)) + ', Target(RR=1:1): ' + str.tostring(math.round(sellTarget,2)) + '. CMP: ' + str.tostring(math.round(close,2))
+        strategy.entry("Short", strategy.short, lotSize, limit=na, stop=na, comment='ID: ' + id, alert_message=alert_msg)
         sl := atrHigh
         tgt := sellTarget
-        // alert(alert_msg, alert.freq_once_per_bar)
 
     // Exit: target or SL
-    shortExitComment = (close > sl) ? "Short SL hit" : sureBuyInTrend ? "Short target hit" : na
     var string exit_msg = na
     if (sureSellInTrend or (close < sl) or (close > buyTarget))
-        exit_msg := (close < sl) ? "Long SL hit. Sorry" : (close > buyTarget) ? 'Long target hit. Enjoy': sureSellInTrend ? 'Next Sell signal came. Exiting' : na
-        strategy.close("enter long", comment=close < sl ? "Long SL hit" : "Long target hit")
-        // alert(exit_msg, alert.freq_once_per_bar)
+        exit_msg := (close < sl) ? "Long SL hit." : (close > buyTarget) ? 'Long target hit.' : sureSellInTrend ? 'Next Sell signal came. Exiting.' : na
+        strategy.close("Long", comment=currtime + exit_msg  + ' CMP: ' + str.tostring(math.round(close,2)) + '. ID: ' + id)
 
     if (sureBuyInTrend or (close > sl) or (close < sellTarget))
-        exit_msg := (close > sl) ? "Short SL hit. Sorry" : (close < sellTarget) ? 'Short target hit. Enjoy': sureBuyInTrend ? 'Next Buy signal came. Exiting' : na
-        strategy.close("enter short", comment=close > sl ? "Short SL hit" : "Short target hit")
-        // alert(exit_msg, alert.freq_once_per_bar)
+        exit_msg := (close > sl) ? "Short SL hit." : (close < sellTarget) ? 'Short target hit.' : sureBuyInTrend ? 'Next Buy signal came. Exiting.' : na
+        strategy.close("Short", comment=currtime + exit_msg + ' CMP: ' + str.tostring(math.round(close,2))  + '. ID: ' + id)
 
 else if(not mktAlwaysOn)
     // Close all open position at the end if Day
-    strategy.close_all(comment = "Close all entries", alert_message="Closing all the pending open positions as market close is near. Thanks.")
-    // alert("Closing all the pending open positions as market close is near. Thanks.", alert.freq_once_per_bar)
-
-// Hack for alerts
-// targetPrice = sureBuyInTrend ? buyTarget : sureSellInTrend ? sellTarget : na
-// plot(math.round(sl,2), title="StopLoss", display = display.all)
-// plot(math.round(targetPrice,2), title="Target", display = display.all)
+    strategy.close_all(comment = "Close all entries", alert_message=currtime + 'Closing all the pending open positions as market close is near. Thanks.')
